@@ -1,0 +1,6 @@
+FROM nginx:latest
+RUN mkdir /root/install
+COPY makeHtmlIndex.sh /root/install/
+WORKDIR /root/install
+RUN chmod a+x makeHtmlIndex.sh
+RUN ./makeHtmlIndex.sh
