@@ -46,7 +46,7 @@
 |One for FluxCD itself|https://github.com/${GITHUB_USERNAME}/gitops|
 |Another one for the apps to be deployed|https://github.com/${GITHUB_USERNAME}/gitops-deployments|
 
-## Make sure your Kubernets cluster complies with FluxCD
+## Make sure your Kubernetes cluster complies with FluxCD
 
     flux check --pre
 
