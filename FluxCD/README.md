@@ -21,8 +21,8 @@
 |---|---|
 |KIND_CLUSTER_NAME|sandbox|
 |GITHUB_USERNAME|papafrancky|
-|GITHUB_PAT|$( cat ~/secrets/github.${GITHUB_USERNAME}.PAT.FluxCD.txt )|
-|DISCORD_WEBHOOK|$( cat ${HOME}/secrets/discord.gitops.webhook.txt )|
+|GITHUB_PAT|\$( cat ~/secrets/github.${GITHUB_USERNAME}.PAT.FluxCD.txt )|
+|DISCORD_WEBHOOK|\$( cat ${HOME}/secrets/discord.gitops.webhook.txt )|
 |WORKING_DIR|${HOME}/code/github|
 
 
@@ -33,10 +33,14 @@
     kind create cluster --name ${KIND_CLUSTER_NAME}
     kind get clusters
 
+
+## Flux CLI install
+
     curl -s https://fluxcd.io/install.sh | sudo bash
 
+
 ## GitHub repositories :
-2 GitHub repos will be created :
+2 GitHub repos must be created to meet our needs :
 |USAGE|URL|
 |---|---|
 |One for FluxCD itself|https://github.com/${GITHUB_USERNAME}/gitops|
