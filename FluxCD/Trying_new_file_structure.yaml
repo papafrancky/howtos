@@ -1,0 +1,217 @@
+
+
+## Pre-requis
+- un cluster Kubernetes pret ( kind create cluster --name=development )
+- un repo GitHub nommé ${GITHUB_REPOSITORY}
+- un channel Discord avec un channel et un webhook déjà configuré
+
+
+GITHUB_USERNAME=<my_github_username>
+GITHUB_PAT=<my_github_personal_access_token>
+GITHUB_REPOSITORY=kubernetes-development
+
+export GITHUB_USER=${GITHUB_USERNAME}
+export GITHUB_TOKEN=${GITHUB_PAT}
+
+flux bootstrap github \
+  --token-auth \
+  --owner ${GITHUB_USER} \
+  --repository ${GITHUB_REPOSITORY} \
+  --branch=main \
+  --path=. \
+  --personal \
+  --components-extra=image-reflector-controller,image-automation-controller
+
+-> Check with your browser :
+https://github.com/${GITHUB_USERNAME}/${GITHUB_REPOSITORY}/tree/main
+
+kubectl -n flux-system get all
+
+
+WORKING_DIRECTORY=/Users/franck/code/github/fluxcd_structure
+
+cd ${WORKING_DIRECTORY}
+git clone git@github.com:${GITHUB_USERNAME}/${GITHUB_REPOSITORY}.git
+cd ${GITHUB_REPOSITORY}
+mkdir -p notifications/{providers,alerts}  
+
+mkdir -p notifications/{providers,alerts}
+
+# Créer un channel nommé ${GITHUB_REPOSITORY} dans son serveur Discord
+# Dans les paramètres du channel, intégration, créer un webhook
+#   Name : FluxCD
+#   URL  : https://discord.com/api/webhooks/1203365724089749525/oi73pVfmSPJp6ujLoEOJWO7z6s9vrVPcqgui3w6VvSj4DF7nx_rZ8BElJFDiYl9XSdc_
+# -> on entre l'URL dans un secret Kubernetes
+# doc : https://fluxcd.io/flux/components/notification/providers/#discord
+
+DISCORD_WEBHOOK=https://discord.com/api/webhooks/1203365724089749525/oi73pVfmSPJp6ujLoEOJWO7z6s9vrVPcqgui3w6VvSj4DF7nx_rZ8BElJFDiYl9XSdc_
+kubectl create secret generic discord-webhook --from-literal=address=${DISCORD_WEBHOOK}
+
+flux create alert-provider discord-fluxcd \
+  --type=discord \
+  --secret-ref=discord-webhook \
+  --channel=${GITHUB_REPOSITORY} \
+  --username=FluxCD \
+  --namespace=default \
+  --export > notifications/providers/discord-fluxcd.yaml
+
+flux create alert discord-fluxcd \
+  --event-severity=info \
+  --event-source='GitRepository/*,Kustomization/*,ImageRepository/*,ImagePolicy/*,HelmRepository/*' \
+  --provider-ref=discord-fluxcd \
+  --namespace=default \
+  --export > notifications/alerts/discord-fluxcd.yaml
+
+cd ${WORKING_DIRECTORY}/${GITHUB_REPOSITORY}
+git st
+git add .
+git commit -m 'feat: configuring discord alerting.'
+git push
+
+kubectl get providers,alerts -n default
+NAME                                                     AGE
+provider.notification.toolkit.fluxcd.io/discord-fluxcd   54s
+
+NAME                                                  AGE
+alert.notification.toolkit.fluxcd.io/discord-fluxcd   54s
+
+
+# Nous allons organiser les manifests en les regroupant par produit.
+# Au même niveau que le répertoire kubernetes-development (ie. notre cluster Kubernetes de développement), nous allons créer un répertoire applications qui contient autant de sous-répertoires qu'il y aura de produits à faire gérer par FluxCD.
+# Prenons l'exemple d'une application nommé 'podinfo'.
+# Dans GitHub, on créé un nouveau repository nommé podinfo-development.
+# Ensuite on utilise le bouton 'import' pour récupérer le projet https://github.com/stefanprodan/podinfo
+# -> Nous avons désormais une copie de l'application 'podinfo' dans notre propre repo GitHub 'podingo-development'.
+
+cd ${WORKING_REPOSITORY}
+mkdir products && cd products
+git clone git@github.com:${GITHUB_USERNAME}/podinfo-development.git
+mv podinfo-development podinfo
+# -> Nous avons désormais un répertoire 'products/podinfo'. Dans le répertoire kustomize se trouvent les manifests qui nous intéressent pour déployer le produit.
+
+# Commençons par créer un namespace dédié à ce produit :
+
+    kubectl create namespace podinfo --dry-run=client -o yaml > namespace.yaml
+
+    cat podinfo/namespace.yaml
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: podinfo
+
+    git add .
+    git commit -m 'evol: created podinfo namespace'
+    git push
+
+    kubectl get namespace podinfo
+    NAME      STATUS   AGE
+    podinfo   Active   21s
+
+# Nous devons désormais créer une paire de clés SSH pour permettre à FluxCD de se connecter avec les droits d'écriture au repo applicatif.
+flux create secret git podinfo-gitrepository \
+  --url=ssh://github.com/${GITHUB_USERNAME}/podinfo-development \
+  --namespace=podinfo
+✚ deploy key: ecdsa-sha2-nistp384 AAAAE2VjZHNhLXNoYTItbmlzdHAzODQAAAAIbmlzdHAzODQAAABhBOep4ZXRd1VXdKeS6sQyP2kiOfoTCw+LfN6DTi3vCkVPmpyPeNxrcwefBav85KOipUBSPv9kJiJfXapjLhf+49xtV6mnbwuEfpxM+dt4sP+z+gHFZaJXYnL6j1necVmVqw==
+
+► git secret 'podinfo-gitrepository' created in 'podinfo' namespace
+
+
+# Insérer la clé publique dans les settings du repo GitHub :  https://github.com/${GITHUB_USERNAME}/podinfo-development/settings/keys/new
+# title: FluxCD
+# Key : ecdsa-sha2-nistp384 AAAAE2VjZHNhLXNoYTItbmlzdHAzODQAAAAIbmlzdHAzODQAAABhBL/4WBv909LOgA59QRZS00JC1SgKY0sk8qykde7J+nckCq2gsWQIIwgp9tk6A4JdWyKiKz+No3MIKkMCgcEF7TyEEYtAGyHqeot398ezg48+MZ/rVvaWpvMavzxXT+Thbg==
+# !!! Cocher la case 'Allow write access' !!!
+# Cliquer sur le bouton "Add Key" et renseigner son mot de passe pour confirmer
+
+
+cd ${WORKING_DIRECTORY}/kubernetes-development/products/podinfo/
+
+flux create source git podinfo-development \
+  --url=ssh://git@github.com/${GITHUB_USERNAME}/podinfo-development.git \
+  --branch=main \
+  --secret-ref=podinfo-gitrepository \
+  --namespace=podinfo \
+  --export > gitrepository.yaml
+
+cat gitrepository.yaml
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: podinfo-development
+  namespace: podinfo
+spec:
+  interval: 1m0s
+  ref:
+    branch: main
+  secretRef:
+    name: podinfo-gitrepository
+  url: ssh://git@github.com/papaFrancky/podinfo-development.git
+
+# Définition de la Kustomization qui va avec :
+flux create kustomization podinfo \
+    --source=GitRepository/podinfo-development.podinfo \
+    --path="./kustomize" \
+    --prune=true \
+    --namespace=podinfo \
+    --export > kustomize.yaml
+
+ cat kustomize.yaml
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: podinfo
+  namespace: podinfo
+spec:
+  interval: 1m0s
+  path: ./kustomize
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: podinfo-development
+    namespace: podinfo
+
+cd ${WORKING_DIRECTORY}/kubernetes-development/products/
+kustomize create --autodetect --recursive
+cat kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- podinfo
+
+
+git add .
+git commit -m "feat: added podinfo GitRepo + Kustomization."
+git push
+
+flux reconcile kustomization flux-system --with-source
+
+kubectl get GitRepositories -n default
+NAME                  URL                                                        AGE    READY   STATUS
+podinfo-development   ssh://git@github.com/papaFrancky/podinfo-development.git   105m   True    stored artifact for revision 'main@sha1:dc830d02a6e0bcbf63bcc387e8bde57d5627aec2'
+
+kubectl get kustomizations -n default                                                                                                                                                                                                                       ✔  kind-development ⎈  19:48:32 
+NAME                  AGE    READY   STATUS
+podinfo-development   106m   True    Applied revision: main@sha1:dc830d02a6e0bcbf63bcc387e8bde57d5627aec2
+
+
+
+kubectl get all -n default                                                                                                                                                                                                                                        ✔  kind-development ⎈  19:50:23 
+NAME                           READY   STATUS    RESTARTS   AGE
+pod/podinfo-664f9748d8-2d4nf   1/1     Running   0          2m16s
+pod/podinfo-664f9748d8-n5gwn   1/1     Running   0          2m1s
+
+NAME                 TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)             AGE
+service/kubernetes   ClusterIP   10.96.0.1      <none>        443/TCP             3h50m
+service/podinfo      ClusterIP   10.96.175.42   <none>        9898/TCP,9999/TCP   2m16s
+
+NAME                      READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/podinfo   2/2     2            2           2m16s
+
+NAME                                 DESIRED   CURRENT   READY   AGE
+replicaset.apps/podinfo-664f9748d8   2         2         2       2m16s
+
+NAME                                          REFERENCE            TARGETS         MINPODS   MAXPODS   REPLICAS   AGE
+horizontalpodautoscaler.autoscaling/podinfo   Deployment/podinfo   <unknown>/99%   2         4         2          2m16s
+
+
