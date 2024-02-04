@@ -89,6 +89,15 @@ git clone git@github.com:${GITHUB_USERNAME}/podinfo-development.git
 mv podinfo-development podinfo
 # -> Nous avons désormais un répertoire 'products/podinfo'. Dans le répertoire kustomize se trouvent les manifests qui nous intéressent pour déployer le produit.
 
+# Notez que nous voulons que le produit soit déployé dans le namespace 'podinfo'.
+# !!! Il est donc nécessaire d'ajouter dans les manifests deployment.yaml, hpa.yaml et service.yaml le paramètre suivant : .metadata.namespace=podinfo !!!
+# Une fois les manifests modifiés, il faut les commiter et les pousser sur la branche main du repository.
+# !!! ce serait intéressant de passer par Flux pour gérer ce paramètre sans modifier les manifests dans leur repo Github.
+
+# Nous allons également profiter de ce moment pour 'downgrader' la version de l'image du conteneur : dans le manifest deployment.yaml, nous allons modifier  '.spec.template.spec.containers[].image' comme suit :
+ghcr.io/stefanprodan/podinfo:6.5.4 -> ghcr.io/stefanprodan/podinfo:6.5.0
+# Cela nous servira plus tard avec l'ImageAutomation.
+
 # Commençons par créer un namespace dédié à ce produit :
 
     kubectl create namespace podinfo --dry-run=client -o yaml > namespace.yaml
@@ -111,12 +120,8 @@ mv podinfo-development podinfo
 flux create secret git podinfo-gitrepository \
   --url=ssh://github.com/${GITHUB_USERNAME}/podinfo-development \
   --namespace=podinfo
-✚ deploy key: ecdsa-sha2-nistp384 AAAAE2VjZHNhLXNoYTItbmlzdHAzODQAAAAIbmlzdHAzODQAAABhBOep4ZXRd1VXdKeS6sQyP2kiOfoTCw+LfN6DTi3vCkVPmpyPeNxrcwefBav85KOipUBSPv9kJiJfXapjLhf+49xtV6mnbwuEfpxM+dt4sP+z+gHFZaJXYnL6j1necVmVqw==
 
-► git secret 'podinfo-gitrepository' created in 'podinfo' namespace
-
-
-# Insérer la clé publique dans les settings du repo GitHub :  https://github.com/${GITHUB_USERNAME}/podinfo-development/settings/keys/new
+# Insérer la clé publique (deploy key) dans les settings du repo GitHub :  https://github.com/${GITHUB_USERNAME}/podinfo-development/settings/keys/new
 # title: FluxCD
 # Key : ecdsa-sha2-nistp384 AAAAE2VjZHNhLXNoYTItbmlzdHAzODQAAAAIbmlzdHAzODQAAABhBL/4WBv909LOgA59QRZS00JC1SgKY0sk8qykde7J+nckCq2gsWQIIwgp9tk6A4JdWyKiKz+No3MIKkMCgcEF7TyEEYtAGyHqeot398ezg48+MZ/rVvaWpvMavzxXT+Thbg==
 # !!! Cocher la case 'Allow write access' !!!
@@ -148,12 +153,13 @@ spec:
   url: ssh://git@github.com/papaFrancky/podinfo-development.git
 
 # Définition de la Kustomization qui va avec :
+# note : nommer le manifest kustomize.yml pose des problèmes, le nom doit être réservé pour les besoins internes de Flux. Nous le nommerons sync.yaml.
 flux create kustomization podinfo \
     --source=GitRepository/podinfo-development.podinfo \
     --path="./kustomize" \
     --prune=true \
     --namespace=podinfo \
-    --export > kustomize.yaml
+    --export > sync.yaml
 
  cat kustomize.yaml
 ---
@@ -171,32 +177,23 @@ spec:
     name: podinfo-development
     namespace: podinfo
 
-cd ${WORKING_DIRECTORY}/kubernetes-development/products/
-kustomize create --autodetect --recursive
-cat kustomization.yaml
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
-- podinfo
-
-
 git add .
 git commit -m "feat: added podinfo GitRepo + Kustomization."
 git push
 
 flux reconcile kustomization flux-system --with-source
 
-kubectl get GitRepositories -n default
+kubectl get GitRepositories -n podinfo
 NAME                  URL                                                        AGE    READY   STATUS
 podinfo-development   ssh://git@github.com/papaFrancky/podinfo-development.git   105m   True    stored artifact for revision 'main@sha1:dc830d02a6e0bcbf63bcc387e8bde57d5627aec2'
 
-kubectl get kustomizations -n default                                                                                                                                                                                                                       ✔  kind-development ⎈  19:48:32 
+kubectl get kustomizations -n podinfo
 NAME                  AGE    READY   STATUS
 podinfo-development   106m   True    Applied revision: main@sha1:dc830d02a6e0bcbf63bcc387e8bde57d5627aec2
 
 
 
-kubectl get all -n default                                                                                                                                                                                                                                        ✔  kind-development ⎈  19:50:23 
+kubectl get all -n podinfo
 NAME                           READY   STATUS    RESTARTS   AGE
 pod/podinfo-664f9748d8-2d4nf   1/1     Running   0          2m16s
 pod/podinfo-664f9748d8-n5gwn   1/1     Running   0          2m1s
@@ -213,5 +210,187 @@ replicaset.apps/podinfo-664f9748d8   2         2         2       2m16s
 
 NAME                                          REFERENCE            TARGETS         MINPODS   MAXPODS   REPLICAS   AGE
 horizontalpodautoscaler.autoscaling/podinfo   Deployment/podinfo   <unknown>/99%   2         4         2          2m16s
+
+
+
+# Nous allons maintenant mettre en place la mise à jour automatique de l'image du conteneur utilisée pour l'application podinfo.
+# Pour ce faire, nous allons définir un ImageRepository et une ImagePolicy :
+
+cd ${WORKING_DIRECTORY}/kubernetes-development/products/podinfo
+
+flux create image repository podinfo \
+  --image=ghcr.io/stefanprodan/podinfo \
+  --interval=5m \
+  --namespace=podinfo \
+  --export > imagerepository.yaml
+
+cat imagerepository.yaml
+---
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImageRepository
+metadata:
+  name: podinfo
+  namespace: podinfo
+spec:
+  image: ghcr.io/stefanprodan/podinfo
+  interval: 5m0s
+  
+git add .
+git commit -m "feat: defined the podinfo image repository."
+git push
+
+kubectl describe imagerepository podinfo
+
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImageRepository
+metadata:
+  creationTimestamp: "2024-02-04T20:45:06Z"
+  finalizers:
+  - finalizers.fluxcd.io
+  generation: 1
+  labels:
+    kustomize.toolkit.fluxcd.io/name: flux-system
+    kustomize.toolkit.fluxcd.io/namespace: flux-system
+  name: podinfo
+  namespace: podinfo
+  resourceVersion: "34713"
+  uid: d1124c6d-58f5-4ba4-9202-0bdc67b6a37f
+spec:
+  exclusionList:
+  - ^.*\.sig$
+  image: ghcr.io/stefanprodan/podinfo
+  interval: 5m0s
+  provider: generic
+status:
+  canonicalImageName: ghcr.io/stefanprodan/podinfo
+  conditions:
+  - lastTransitionTime: "2024-02-04T20:45:07Z"
+    message: 'successful scan: found 51 tags'
+    observedGeneration: 1
+    reason: Succeeded
+    status: "True"
+    type: Ready
+  lastScanResult:
+    latestTags:
+    - latest
+    - 6.5.4
+    - 6.5.3
+    - 6.5.2
+    - 6.5.1
+    - 6.5.0
+    - 6.4.1
+    - 6.4.0
+    - 6.3.6
+    - 6.3.5
+    scanTime: "2024-02-04T20:45:07Z"
+    tagCount: 51
+  observedExclusionList:
+  - ^.*\.sig$
+  observedGeneration: 1
+
+  
+
+flux create image policy podinfo \
+  --image-ref=podinfo \
+  --select-semver='>=5.4.x' \
+  --namespace=podinfo \
+  --export > imagepolicy.yaml
+
+cat imagepolicy.yaml
+---
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImagePolicy
+metadata:
+  name: nginxhello
+  namespace: podinfo
+spec:
+  imageRepositoryRef:
+    name: podinfo
+  policy:
+    semver:
+      range: '>=5.4.x'
+
+git add .
+git commit -m "feat: defined the podinfo image policy."
+git push
+
+kubectl get imagepolicy podinfo -n podinfo
+NAME      LATESTIMAGE
+podinfo   ghcr.io/stefanprodan/podinfo:6.5.4
+
+
+# Nous pouvons enfin ajouter un marqueur à notre deployment pour permettre la mise à jour de l'application podinfo via image automation.
+cd ${WORKING_DIRECTORY}/products/podinfo-development/kustomize
+vi deployment.yaml
+Nous allons ajouter un marquer sur le paramètre .spec.template.spec.containers[].image comme suit :
+ghcr.io/stefanprodan/podinfo:6.5.0 -> ghcr.io/stefanprodan/podinfo:6.5.0 # {"$imagepolicy": "podinfo:podinfo"}
+
+# "podinfo.podinfo" correspond à "<namespace>.<imagepolicy>"
+# doc : https://fluxcd.io/flux/guides/image-update/#configure-image-update-for-custom-resources
+
+# Il nous reste à dfinir une ImageUpdateAutomation
+# doc : https://fluxcd.io/flux/cmd/flux_create_image_update/#examples
+
+cd ${WORKING_DIRECTORY}/kubernetes-development/products/podinfo
+flux create image update podinfo \
+    --namespace=podinfo \
+    --git-repo-ref=podinfo-development \
+    --git-repo-path="./kustomize" \
+    --checkout-branch=main \
+    --author-name=FluxCD \
+    --author-email=flux@example.com \
+    --commit-template="{{range .Updated.Images}}{{println .}}{{end}}" \
+    --export > image-update-automation.yaml
+
+cat image-update-automation.yaml
+
+---
+apiVersion: image.toolkit.fluxcd.io/v1beta1
+kind: ImageUpdateAutomation
+metadata:
+  name: podinfo
+  namespace: podinfo
+spec:
+  git:
+    checkout:
+      ref:
+        branch: main
+    commit:
+      author:
+        email: flux@example.com
+        name: FluxCD
+      messageTemplate: '{{range .Updated.Images}}{{println .}}{{end}}'
+  interval: 1m0s
+  sourceRef:
+    kind: GitRepository
+    name: podinfo-development
+  update:
+    path: ./kustomize
+    strategy: Setters
+  update:
+    path: ./kustomize
+    strategy: Setters
+
+
+cd ${WORKING_DIRECTORY}/products/podinfo-development/kustomize
+git fetch # si le manifest a été modifié, nous aurons 1 commit de retard sur notre copie locale.
+git pull
+grep "image:" deployment.yaml
+        image: ghcr.io/stefanprodan/podinfo:6.5.4 # {"$imagepolicy": "podinfo:podinfo"}
+-> la version a bien changé
+
+git log
+
+commit 9a10ef5790264c1b415323bc3713c1ee7d5591cb (HEAD -> main, origin/main, origin/HEAD)
+Author: FluxCD <flux@example.com>
+Date:   Sun Feb 4 21:35:24 2024 +0000
+
+    ghcr.io/stefanprodan/podinfo:6.5.4
+
+
+kubectl get gitrepository podinfo-development
+NAME                  URL                                                        AGE     READY   STATUS
+podinfo-development   ssh://git@github.com/papaFrancky/podinfo-development.git   4h17m   True    stored artifact for revision 'main@sha1:9a10ef5790264c1b415323bc3713c1ee7d5591cb'
+# -> nous retrouvons le même SHA1.
 
 
