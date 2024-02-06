@@ -1,26 +1,26 @@
 
 # FluxCD - Proposition de nouvelle organisation des manifests
 
+Nous voulons tester une manière d'organiser notre repo Flux en suivant une approche par produit/application.
+
+Nous décrirons comment installer from scratch un cluster kubernetes (kind) de développement qui hébergera dans un premier temps une application 'podinfo' récupérée depuis un repo Git dédié.
 
 ## Pre-requis
 - un cluster Kubernetes pret ( kind create cluster --name=development )
-- un repo GitHub nommé ${GITHUB_REPOSITORY}
-- un channel Discord avec un channel et un webhook déjà configuré
+- un repo GitHub nommé _'kubernetes-development'_ dans lequel FluxCD sera bootsrapé;
+- un channel Discord avec un channel nommé _'podinfo-development'_ (dédié aux notifications de l'appli podinfo pour l'environnement de développement) et un webhook déjà configuré.
+
 
 ## Bootstrap de FluxCD
 
 
-    GITHUB_USERNAME=<my_github_username>
-    GITHUB_PAT=<my_github_personal_access_token>
-    GITHUB_REPOSITORY=kubernetes-development
-    
-    export GITHUB_USER=${GITHUB_USERNAME}
-    export GITHUB_TOKEN=${GITHUB_PAT}
+    export GITHUB_USER=papaFrancky
+    export GITHUB_TOKEN=<my_github_personal_access_token>
     
     flux bootstrap github \
       --token-auth \
-      --owner ${GITHUB_USER} \
-      --repository ${GITHUB_REPOSITORY} \
+      --owner papaFrancky \
+      --repository kubernetes-development \
       --branch=main \
       --path=. \
       --personal \
@@ -28,109 +28,199 @@
 
 -> Vérification avec un navigateur :
 
-    https://github.com/${GITHUB_USERNAME}/${GITHUB_REPOSITORY}/tree/main
+    https://github.com/papaFrancky/kubernetes-development/tree/main
 
 -> Vérification avec kubectl :
 
     kubectl -n flux-system get all
 
 
-## Création des notifications Discord
+## Organisation des manifests dans le repository Git dédié à FluxCD
 
-### Récupération du repository en local et création des répertoires d'accueil
+Nous allons organiser les manifests en les regroupant par produit.
 
-    WORKING_DIRECTORY=<my_working_directory>
+Au même niveau que le répertoire _'kubernetes-development'_ (ie. le nom donné à notre cluster Kubernetes de développement), nous allons créer un répertoire _'products'_ qui contiendra les repos Git clonés des produits gérés par FluxCD.
+Dans le repo Git de FluxCD, nommé kubernetes-development car il correspond au cluster de développement dans notre exemple, nous décrirons comment Flux gèrera nos produits sur le cluster dans le répertoire products et et dans autant de sous-répertoires qu'il y aura de produits à gérer.
+
+L'arborescence ressemblera à quelque-chose comme ceci :
+
+${WORKING_DIRECTORY}
+├── kubernetes-development
+│   ├── README.md
+│   ├── flux-system
+│   │   ├── gotk-components.yaml
+│   │   ├── gotk-sync.yaml
+│   │   └── kustomization.yaml
+│   └── products
+│       ├── nginxhello
+│       │   ├── ...
+│       │   ├── ...
+│       │   └── ...
+│       └── podinfo
+│           ├── git-repository.yaml
+│           ├── image-policy.yaml
+│           ├── image-repository.yaml
+│           ├── image-update-automation.yaml
+│           ├── namespace.yaml
+│           ├── notification-alert.yaml
+│           ├── notification-provider.yaml
+│           └── sync.yaml
+├── products
+│   ├── nginxhello
+│   │   ├── ...
+│   │   └── ...
+│   └── podinfo
+│       ├── ...
+│       ├── ...
+│       ├── ...
+
+
+## Mise en place de la gestion d'une application par FluxCD
+
+Nous prendrons comme exemple l'application podinfo de Stefan Prodan.
+La première chose à faire est de cloner en local notre repo Git dédié à FluxCD pour notre cluster de développement :
     
     cd ${WORKING_DIRECTORY}
-    git clone git@github.com:${GITHUB_USERNAME}/${GITHUB_REPOSITORY}.git
-    cd ${GITHUB_REPOSITORY}
+    git clone git@github.com:${GITHUB_USERNAME}/kubernetes-development.git
+ 
+Nous allons rassembler tous les manifests de paramétrage dans un répertoire dédié à l'application :
 
-    mkdir -p notifications/{providers,alerts}  
-    
-### Configuration du channel Discord
+    cd kubernetes-development
+    mkdir -p products/podinfo
+    cd products/podinfo
 
-#### Création du channel Discord
 
-Créer un channel nommé ${GITHUB_REPOSITORY} dans son 'serveur' Discord et recopier le webhook créé par défaut.
+### Namespace dédié à l'application
 
+Podinfo disposera de son propre namespace.
+
+    kubectl create namespace podinfo --dry-run=client -o yaml > namespace.yaml
+
+    cat namespace.yaml
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: podinfo
+
+    git add .
+    git commit -m 'created namespace podinfo.'
+    git push
+
+
+    kubectl get namespace podinfo
+
+        NAME      STATUS   AGE
+        podinfo   Active   21s
+
+
+### Configuration des notifications (provider: Discord) 
+
+Nous souhaitons être informés via un service de messagerie des modifications apportées à l'application. Notre choix se porte sur Discord.
+
+
+#### Création du channel Discord dédié à l'application podinfo
+
+Créer un channel nommé podinfo-development dans son 'serveur' Discord et recopier le webhook créé par défaut.
 
 
 #### Enregistrement du webhook du channel Discord dans un Secret Kubernetes
 
-    DISCORD_WEBHOOK=<my_discord_webhook>
-    kubectl create secret generic discord-webhook --from-literal=address=${DISCORD_WEBHOOK}
+    DISCORD_WEBHOOK=https://discord.com/api/webhooks/1204170006032818296/D6-rBzJHb1EAfPOtuVbzIqs2goJTuoCn-1AUCef-HZN2xZvK9Mkjolg29dc3z1vqIPuf
 
-#### Création de l'Alert Provider de type Discord
+    kubectl -n podinfo create secret generic discord-podinfo-development-webhook --from-literal=address=${DISCORD_WEBHOOK} 
+
+    kubectl -n podinfo get secret discord-podinfo-development-webhook
+    
+      NAME                                  TYPE     DATA   AGE
+      discord-podinfo-development-webhook   Opaque   1      134m 
+
+
+#### Création du 'notification provider'
 
 |||
 |---|---|
 |doc|https://fluxcd.io/flux/components/notification/providers/#discord|
 |||
 
-    flux create alert-provider discord-fluxcd \
-      --type=discord \
-      --secret-ref=discord-webhook \
-      --channel=${GITHUB_REPOSITORY} \
-      --username=FluxCD \
-      --namespace=default \
-      --export > notifications/providers/discord-fluxcd.yaml
+flux create alert-provider discord \
+  --type=discord \
+  --secret-ref=discord-webhook \
+  --channel=kubernetes-development \
+  --username=FluxCD \
+  --namespace=podinfo \
+  --export > notification-provider.yaml
 
-#### Création d'une alerte dans le channel Discord
 
-    flux create alert discord-fluxcd \
+cat notification-provider.yaml
+
+    ---
+    apiVersion: notification.toolkit.fluxcd.io/v1beta3
+    kind: Provider
+    metadata:
+      name: discord
+      namespace: podinfo
+    spec:
+      channel: kubernetes-development
+      secretRef:
+        name: discord-podinfo-development-webhook
+      type: discord
+      username: FluxCD
+
+
+#### Configuration des alertes Discord
+
+    flux create alert discord \
       --event-severity=info \
       --event-source='GitRepository/*,Kustomization/*,ImageRepository/*,ImagePolicy/*,HelmRepository/*' \
-      --provider-ref=discord-fluxcd \
-      --namespace=default \
-      --export > notifications/alerts/discord-fluxcd.yaml
+      --provider-ref=discord \
+      --namespace=podinfo \
+      --export > notification-alert.yaml
+
+
+    cat notifications/alerts/discord.yaml
+
+        ---
+        apiVersion: notification.toolkit.fluxcd.io/v1beta3
+        kind: Alert
+        metadata:
+          name: discord
+          namespace: podinfo
+        spec:
+          eventSeverity: info
+          eventSources:
+          - kind: GitRepository
+            name: '*'
+          - kind: Kustomization
+            name: '*'
+          - kind: ImageRepository
+            name: '*'
+          - kind: ImagePolicy
+            name: '*'
+          - kind: HelmRepository
+            name: '*'
+          providerRef:
+            name: discord
+
 
 #### Enregistrement des modifications
 
-    cd ${WORKING_DIRECTORY}/${GITHUB_REPOSITORY}
+    cd ${WORKING_DIRECTORY}/kubernetes-development
     git st
     git add .
-    git commit -m 'feat: configuring discord alerting.'
+    git commit -m 'configuring discord alerting.'
     git push
-
-#### Vérification
     
-    kubectl get providers,alerts -n default
+    kubectl get providers,alerts -n podinfo
     
-        NAME                                                     AGE
-        provider.notification.toolkit.fluxcd.io/discord-fluxcd   54s
+        NAME                                              AGE
+        provider.notification.toolkit.fluxcd.io/discord   54s
         
-        NAME                                                  AGE
-        alert.notification.toolkit.fluxcd.io/discord-fluxcd   54s
+        NAME                                              AGE
+        alert.notification.toolkit.fluxcd.io/discord      54s
 
-## Organisation des manifests dans le repository Git dédié à FluxCD
 
-### Vision d'ensemble
+--- REPRENDRE ICI -----
 
-Nous allons organiser les manifests en les regroupant par produit.
-
-Au même niveau que le répertoire _'kubernetes-development'_ (ie. le nom donné à notre cluster Kubernetes de développement), nous allons créer un répertoire _'products'_ qui contient autant de sous-répertoires qu'il y aura de produits à faire gérer par FluxCD. Nous placerons dans ce répertoire tous les manifests qui permettront à FluxCD de gérer l'application en question.
-
-Prenons l'exemple d'une application nommé 'podinfo' :
-
-    kubernetes-development
-    ├── README.md
-    ├── flux-system
-    │   ├── gotk-components.yaml
-    │   ├── gotk-sync.yaml
-    │   └── kustomization.yaml
-    ├── notifications
-    │   ├── alerts
-    │   │   └── discord-fluxcd.yaml
-    │   └── providers
-    │       └── discord-fluxcd.yaml
-    └── products
-        └── podinfo
-            ├── git-repository.yaml
-            ├── image-policy.yaml
-            ├── image-repository.yaml
-            ├── image-update-automation.yaml
-            ├── namespace.yaml
-            └── sync.yaml
 
 ## Création du repository Git dédié à l'application '_podinfo_'
 
@@ -170,28 +260,6 @@ Nous allons également profiter de ce moment pour 'downgrader' la version de l'i
 
 Cela nous servira plus tard avec l'ImageAutomation.
 
-
-### Namespace dédié au produit :
-
-Podinfo disposera de son propre namespace.
-
-    kubectl create namespace podinfo --dry-run=client -o yaml > namespace.yaml
-
-    cat podinfo/namespace.yaml
-    apiVersion: v1
-    kind: Namespace
-    metadata:
-      name: podinfo
-
-    git add .
-    git commit -m 'evol: created podinfo namespace'
-    git push
-
-
-    kubectl get namespace podinfo
-
-        NAME      STATUS   AGE
-        podinfo   Active   21s
 
 
 ### Génération des deploy keys pour le repo GitHub de l'application
