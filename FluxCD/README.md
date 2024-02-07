@@ -334,7 +334,7 @@ Let's observe FluxCD's reconciliation :
 
     cd ${WORKING_DIR}/gitops/clusters/${KIND_CLUSTER_NAME}
     flux create image repository nginxhello \
-      --image=hub.docker.com/nbrown/nginxhello \
+      --image=nbrown/nginxhello \
       --interval=5m \
       --namespace=default \
       --export > sources/nginxhello-imagerepository.yaml
@@ -347,7 +347,7 @@ Let's observe FluxCD's reconciliation :
     #   name: nginxhello
     #   namespace: default
     # spec:
-    #   image: hub.docker.com/nbrown/nginxhello
+    #   image: nbrown/nginxhello
     #   interval: 5m0s
 
 Push the changes to GitHub :
