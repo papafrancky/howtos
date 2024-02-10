@@ -648,9 +648,6 @@ FluxCD les utilisera pour interagir avec le repo GitHub nouvellement créé.
 Cliquer sur le bouton 'Add Key' et renseigner son mot de passe pour confirmer
 
 
-### Configuration des notifications Discord
-
-
 ### Configuration des notifications (provider: Discord) 
 
 #### Création du channel Discord dédié à l'application podinfo
@@ -677,29 +674,29 @@ Créer un channel nommé **_'nginxhello-development'_** dans son 'serveur' Disco
 |doc|https://fluxcd.io/flux/components/notification/providers/#discord|
 |||
 
-flux create alert-provider discord \
-  --type=discord \
-  --secret-ref=discord-nginxhello-development-webhook \
-  --channel=nginxello-development \
-  --username=FluxCD \
-  --namespace=nginxhello \
-  --export > notification-provider.yaml
+    flux create alert-provider discord \
+      --type=discord \
+      --secret-ref=discord-nginxhello-development-webhook \
+      --channel=nginxello-development \
+      --username=FluxCD \
+      --namespace=nginxhello \
+      --export > notification-provider.yaml
 
 
-cat notification-provider.yaml
+    cat notification-provider.yaml
 
----
-apiVersion: notification.toolkit.fluxcd.io/v1beta3
-kind: Provider
-metadata:
-  name: discord
-  namespace: nginxhello
-spec:
-  channel: nginxello-development
-  secretRef:
-    name: discord-nginxhello-development-webhook
-  type: discord
-  username: FluxCD
+    ---
+    apiVersion: notification.toolkit.fluxcd.io/v1beta3
+    kind: Provider
+    metadata:
+      name: discord
+      namespace: nginxhello
+    spec:
+      channel: nginxello-development
+      secretRef:
+        name: discord-nginxhello-development-webhook
+      type: discord
+      username: FluxCD
 
 
 #### Configuration des alertes Discord
@@ -714,27 +711,27 @@ spec:
 
     cat notifications/alerts/discord.yaml
 
----
-apiVersion: notification.toolkit.fluxcd.io/v1beta3
-kind: Alert
-metadata:
-  name: discord
-  namespace: nginxhello
-spec:
-  eventSeverity: info
-  eventSources:
-  - kind: GitRepository
-    name: '*'
-  - kind: Kustomization
-    name: '*'
-  - kind: ImageRepository
-    name: '*'
-  - kind: ImagePolicy
-    name: '*'
-  - kind: HelmRepository
-    name: '*'
-  providerRef:
-    name: discord
+        ---
+        apiVersion: notification.toolkit.fluxcd.io/v1beta3
+        kind: Alert
+        metadata:
+          name: discord
+          namespace: nginxhello
+        spec:
+          eventSeverity: info
+          eventSources:
+          - kind: GitRepository
+            name: '*'
+          - kind: Kustomization
+            name: '*'
+          - kind: ImageRepository
+            name: '*'
+          - kind: ImagePolicy
+            name: '*'
+          - kind: HelmRepository
+            name: '*'
+          providerRef:
+            name: discord
 
 
 #### Enregistrement des modifications
@@ -747,11 +744,11 @@ spec:
     
     kubectl get providers,alerts -n nginxhello
     
-NAME                                              AGE
-provider.notification.toolkit.fluxcd.io/discord   9s
+        NAME                                              AGE
+        provider.notification.toolkit.fluxcd.io/discord   9s
 
-NAME                                           AGE
-alert.notification.toolkit.fluxcd.io/discord   9s
+        NAME                                           AGE
+        alert.notification.toolkit.fluxcd.io/discord   9s
 
 
 
@@ -760,19 +757,19 @@ alert.notification.toolkit.fluxcd.io/discord   9s
     cd ${WORKING_DIRECTORY}/kubernetes-development/products/nginxhello
     vi git-repository.yaml
 
-    ---
-apiVersion: source.toolkit.fluxcd.io/v1
-kind: GitRepository
-metadata:
-  name: nginxhello-development
-  namespace: nginxhello
-spec:
-  interval: 1m0s
-  ref:
-    branch: main
-  secretRef:
-    name: nginxhello-gitrepository
-  url: ssh://git@github.com/papafrancky/nginxhello-development.git
+            ---
+        apiVersion: source.toolkit.fluxcd.io/v1
+        kind: GitRepository
+        metadata:
+          name: nginxhello-development
+          namespace: nginxhello
+        spec:
+          interval: 1m0s
+          ref:
+            branch: main
+          secretRef:
+            name: nginxhello-gitrepository
+          url: ssh://git@github.com/papafrancky/nginxhello-development.git
 
     git add .
     git commit -m "defined nginxhello namespace and git repository."
@@ -793,20 +790,20 @@ spec:
 
     cat sync.yaml
 
----
-apiVersion: kustomize.toolkit.fluxcd.io/v1
-kind: Kustomization
-metadata:
-  name: nginxhello
-  namespace: nginxhello
-spec:
-  interval: 1m0s
-  path: ./
-  prune: true
-  sourceRef:
-    kind: GitRepository
-    name: nginxhello-development
-    namespace: nginxhello
+        ---
+        apiVersion: kustomize.toolkit.fluxcd.io/v1
+        kind: Kustomization
+        metadata:
+          name: nginxhello
+          namespace: nginxhello
+        spec:
+          interval: 1m0s
+          path: ./
+          prune: true
+          sourceRef:
+            kind: GitRepository
+            name: nginxhello-development
+            namespace: nginxhello
 
 
     git add .
@@ -824,28 +821,28 @@ spec:
 
     kubectl get kustomizations -n nginxhello
 
-NAME         AGE   READY   STATUS
-nginxhello   20m   True    Applied revision: main@sha1:4915acffa3c3d0ef38b2985e35db8ec1d4294cc9
+        NAME         AGE   READY   STATUS
+        nginxhello   20m   True    Applied revision: main@sha1:4915acffa3c3d0ef38b2985e35db8ec1d4294cc9
    
     
     
     kubectl get all -n nginxhello
 
-NAME                              READY   STATUS    RESTARTS   AGE
-pod/nginxhello-75dfc9cd44-6sxx7   1/1     Running   0          2m44s
-pod/nginxhello-75dfc9cd44-f78d6   1/1     Running   0          2m44s
-pod/nginxhello-75dfc9cd44-hwfwf   1/1     Running   0          2m44s
-pod/nginxhello-75dfc9cd44-p74mr   1/1     Running   0          2m44s
-pod/nginxhello-75dfc9cd44-r88mb   1/1     Running   0          2m44s
+        NAME                              READY   STATUS    RESTARTS   AGE
+        pod/nginxhello-75dfc9cd44-6sxx7   1/1     Running   0          2m44s
+        pod/nginxhello-75dfc9cd44-f78d6   1/1     Running   0          2m44s
+        pod/nginxhello-75dfc9cd44-hwfwf   1/1     Running   0          2m44s
+        pod/nginxhello-75dfc9cd44-p74mr   1/1     Running   0          2m44s
+        pod/nginxhello-75dfc9cd44-r88mb   1/1     Running   0          2m44s
 
-NAME                 TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)   AGE
-service/nginxhello   ClusterIP   10.96.173.138   <none>        80/TCP    2m44s
+        NAME                 TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)   AGE
+        service/nginxhello   ClusterIP   10.96.173.138   <none>        80/TCP    2m44s
 
-NAME                         READY   UP-TO-DATE   AVAILABLE   AGE
-deployment.apps/nginxhello   5/5     5            5           2m44s
+        NAME                         READY   UP-TO-DATE   AVAILABLE   AGE
+        deployment.apps/nginxhello   5/5     5            5           2m44s
 
-NAME                                    DESIRED   CURRENT   READY   AGE
-replicaset.apps/nginxhello-75dfc9cd44   5         5         5       2m44s
+        NAME                                    DESIRED   CURRENT   READY   AGE
+        replicaset.apps/nginxhello-75dfc9cd44   5         5         5       2m44s
 
 
 
@@ -868,15 +865,15 @@ replicaset.apps/nginxhello-75dfc9cd44   5         5         5       2m44s
 
     cat image-repository.yaml
 
- ---
-apiVersion: image.toolkit.fluxcd.io/v1beta2
-kind: ImageRepository
-metadata:
-  name: nginxhello
-  namespace: nginxhello
-spec:
-  image: nbrown/nginxhello
-  interval: 5m0s
+         ---
+        apiVersion: image.toolkit.fluxcd.io/v1beta2
+        kind: ImageRepository
+        metadata:
+          name: nginxhello
+          namespace: nginxhello
+        spec:
+          image: nbrown/nginxhello
+          interval: 5m0s
 
           
         git add .
@@ -1079,16 +1076,16 @@ Nous allons modifier l'ImagePolicy pour utiliser l'image Docker la plus récente
 
     kubectl -n nginxhello get imagerepository nginxhello -o yaml | yq '.status.lastScanResult.latestTags'
 
-- stable
-- mainline
-- latest
-- e6c463e6
-- aad042cb
-- 1.25.2
-- "1.25"
-- 1.24.0
-- "1.24"
-- 1.23.3
+        - stable
+        - mainline
+        - latest
+        - e6c463e6
+        - aad042cb
+        - 1.25.2
+        - "1.25"
+        - 1.24.0
+        - "1.24"
+        - 1.23.3
 
     -> la version la plus récente semble être la 1.25.2
 
@@ -1100,18 +1097,18 @@ Nous allons modifier l'ImagePolicy pour utiliser l'image Docker la plus récente
 
     cat image-policy.yaml
 
----
-apiVersion: image.toolkit.fluxcd.io/v1beta2
-kind: ImagePolicy
-metadata:
-  name: nginxhello
-  namespace: nginxhello
-spec:
-  imageRepositoryRef:
-    name: nginxhello
-  policy:
-    semver:
-      range: '>=1.23.0'
+        ---
+        apiVersion: image.toolkit.fluxcd.io/v1beta2
+        kind: ImagePolicy
+        metadata:
+          name: nginxhello
+          namespace: nginxhello
+        spec:
+          imageRepositoryRef:
+            name: nginxhello
+          policy:
+            semver:
+              range: '>=1.23.0'
 
 
     git add .
