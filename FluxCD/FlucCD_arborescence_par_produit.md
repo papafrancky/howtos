@@ -44,35 +44,35 @@ Dans le repo Git de FluxCD, nommé kubernetes-development car il correspond au c
 
 L'arborescence ressemblera à quelque-chose comme ceci :
 
-${WORKING_DIRECTORY}
-├── kubernetes-development
-│   ├── README.md
-│   ├── flux-system
-│   │   ├── gotk-components.yaml
-│   │   ├── gotk-sync.yaml
-│   │   └── kustomization.yaml
-│   └── products
-│       ├── nginxhello
-│       │   ├── ...
-│       │   ├── ...
-│       │   └── ...
-│       └── podinfo
-│           ├── git-repository.yaml
-│           ├── image-policy.yaml
-│           ├── image-repository.yaml
-│           ├── image-update-automation.yaml
-│           ├── namespace.yaml
-│           ├── notification-alert.yaml
-│           ├── notification-provider.yaml
-│           └── sync.yaml
-├── products
-│   ├── nginxhello
-│   │   ├── ...
-│   │   └── ...
-│   └── podinfo
-│       ├── ...
-│       ├── ...
-│       ├── ...
+    ${WORKING_DIRECTORY}
+    ├── kubernetes-development
+    │   ├── README.md
+    │   ├── flux-system
+    │   │   ├── gotk-components.yaml
+    │   │   ├── gotk-sync.yaml
+    │   │   └── kustomization.yaml
+    │   └── products
+    │       ├── nginxhello
+    │       │   ├── ...
+    │       │   ├── ...
+    │       │   └── ...
+    │       └── podinfo
+    │           ├── git-repository.yaml
+    │           ├── image-policy.yaml
+    │           ├── image-repository.yaml
+    │           ├── image-update-automation.yaml
+    │           ├── namespace.yaml
+    │           ├── notification-alert.yaml
+    │           ├── notification-provider.yaml
+    │           └── sync.yaml
+    ├── products
+    │   ├── nginxhello
+    │   │   ├── ...
+    │   │   └── ...
+    │   └── podinfo
+    │       ├── ...
+    │       ├── ...
+    │       ├── ...
 
 
 ## Mise en place de la gestion d'une application par FluxCD
