@@ -1264,13 +1264,54 @@ Dans notre cas, nous souhaitons simplement afficher le message 'Hello' dans la U
 
     flux create helmrelease podinfo2 \
       --source=HelmRepository/podinfo2 \
-      --chart=podinfo2 \
+      --chart=podinfo \
       --values=${WORKING_DIRECTORY}/helmrelease_values/podinfo2/values.yaml \
       --namespace=podinfo2 \
       --export > ${WORKING_DIRECTORY}/kubernetes-development/products/podinfo2/helm-release.yaml
+
+    cat ${WORKING_DIRECTORY}/kubernetes-development/products/podinfo2/helm-release.yaml
+
+        ---
+        apiVersion: helm.toolkit.fluxcd.io/v2beta2
+        kind: HelmRelease
+        metadata:
+          name: podinfo2
+          namespace: podinfo2
+        spec:
+          chart:
+            spec:
+              chart: podinfo
+              reconcileStrategy: ChartVersion
+              sourceRef:
+                kind: HelmRepository
+                name: podinfo2
+          interval: 1m0s
+          values:
+            ui.message: Hello
 
 
     cd ${WORKING_DIRECTORY}/kubernetes-development
     git add .
     git commit -m "feat: Defining a 'podinfo' Helm release."
     git push
+
+    kubectl -n podinfo2 get helmrelease
+
+        NAME       AGE   READY   STATUS
+        podinfo2   40h   True    Helm install succeeded for release podinfo2/podinfo2.v1 with chart podinfo@6.5.4
+
+
+    kubectl -n podinfo2 get all
+
+        NAME                            READY   STATUS    RESTARTS   AGE
+        pod/podinfo2-7479bb6f76-lfxsz   1/1     Running   0          13s
+
+        NAME               TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)             AGE
+        service/podinfo2   ClusterIP   10.96.217.241   <none>        9898/TCP,9999/TCP   13s
+
+        NAME                       READY   UP-TO-DATE   AVAILABLE   AGE
+        deployment.apps/podinfo2   1/1     1            1           13s
+
+        NAME                                  DESIRED   CURRENT   READY   AGE
+        replicaset.apps/podinfo2-7479bb6f76   1         1         1       13s
+
