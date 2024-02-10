@@ -1117,3 +1117,163 @@ spec:
     git add .
     git commit -m 'modified the nginxhello image policy to get its latest image version.'
     git push 
+
+
+
+## Cleaning
+
+Nous allons nous concentrer sur la gestion des Helm Charts.
+Avant cela, pour économiser des ressources, nous allons désactiver la gestion des ressources précédentes.
+Je ne sais pas s'il existe une méthode plus académique, ausi nous allons simplement renommer les manifests de kustomization.
+
+    cd ${WORKING_DIRECTORY}products
+    mv nginxhello/sync.yaml nginxhello/sync.yaml.BKP
+    mv podinfo/sync.yaml podinfo/sync.yaml.BKP
+
+    git add .
+    git commit -m 'disabling flux management for nginxhello and podinfo products.'
+    git push
+
+    -> les pods, deployments, services sont supprimés dnas les namespaces nginxhello et podinfo !
+
+
+
+## Gestion des applications packagées avec Helm
+
+
+### Arborescence d'accueil pour la nouvelle application
+
+Nous allons déployer la même application _'podinfo'_ mais cette fois-ci, via un Helm Chart.
+Pour éviter toute confusion avec notre premier déploiement, nous hébergerons cette nouvelle application dans une répertoire et un namespace nommés podinfo2
+
+    mkdir ${WORKING_DIRECTORY}/kubernetes-development/products/podinfo2
+    mkdir ${WORKING_DIRECTORY}/products/podinfo2
+
+
+### Namespace dédié
+
+    kubectl create namespace podinfo2 --dry-run=client -o yaml | grep -vE 'creationTimestamp|spec|status' > ${WORKING_DIRECTORY}/kubernetes-development/products/podinfo2/namespace.yaml
+    kubectl apply -f ${WORKING_DIRECTORY}/kubernetes-development/products/podinfo2/namespace.yaml
+
+
+### Notifications Discord
+
+#### Création du channel Discord dédié à l'application podinfo
+Créer un channel nommé **_'podinfo2-development'_** dans son 'serveur' Discord et recopier le webhook créé par défaut.
+
+
+#### Enregistrement du webhook du channel Discord dans un Secret Kubernetes
+
+    DISCORD_WEBHOOK=https://discord.com/api/webhooks/1205276611159789689/6UTavz1aoiaEtxTpDmN-hBYP9vRVpXaD-XJK4K0cI0hscdVd3XFrNR32o9vJ_VStB1Hl
+    kubectl -n podinfo2 create secret generic discord-nginxhello2-development-webhook --from-literal=address=${DISCORD_WEBHOOK}
+
+
+#### Création du 'notification provider'
+
+|||
+|---|---|
+|doc|https://fluxcd.io/flux/components/notification/providers/#discord|
+|||
+
+cd ${WORKING_DIRECTORY}/kubernetes-development/products/podinfo2/
+flux create alert-provider discord \
+  --type=discord \
+  --secret-ref=discord-podinfo2-development-webhook \
+  --channel=podinfo2-development \
+  --username=FluxCD \
+  --namespace=podinfo2 \
+  --export > notification-provider.yaml
+
+
+#### Configuration des alertes Discord
+
+    flux create alert discord \
+      --event-severity=info \
+      --event-source='GitRepository/*,Kustomization/*,ImageRepository/*,ImagePolicy/*,HelmRepository/*' \
+      --provider-ref=discord \
+      --namespace=podinfo2 \
+      --export > notification-alert.yaml
+
+
+#### Enregistrement des modifications
+
+    cd ${WORKING_DIRECTORY}/kubernetes-development
+    git add .
+    git commit -m 'configuring discord alerting.'
+    git push
+    
+    kubectl get providers,alerts -n podinfo2
+
+
+
+#### The _'podinfo'_ Helm Chart
+
+We will use the _'podinfo'_ Helm chart as an example.
+
+    helm show chart oci://ghcr.io/stefanprodan/charts/podinfo
+    
+      # Pulled: ghcr.io/stefanprodan/charts/podinfo:6.5.4
+      # Digest: sha256:a961643aa644f24d66ad05af2cdc8dcf2e349947921c3791fc3b7883f6b1777f
+      # apiVersion: v1
+      # appVersion: 6.5.4
+      # description: Podinfo Helm chart for Kubernetes
+      # home: https://github.com/stefanprodan/podinfo
+      # kubeVersion: '>=1.23.0-0'
+      # maintainers:
+      # - email: stefanprodan@users.noreply.github.com
+      #   name: stefanprodan
+      # name: podinfo
+      # sources:
+      # - https://github.com/stefanprodan/podinfo
+      # version: 6.5.4
+
+
+#### Creating the _'podinfo2'_ helmRepository
+
+##### Authenticating to the Helm repository
+
+Let's create a new _'Docker registry'_ type secret allowinf us to retrieve the Helm chart.
+(ghcr.io belongs to GitHub; they both use the same identity management)
+
+**NOTE** : this repository is a public one; in our case there will be no need to specify credentials in the helmRepository.
+
+    export GITHUB_USER=papafrancky
+    export GITHUB_TOKEN=${GITHUB_PAT}
+
+    kubectl create secret docker-registry ghcr-charts-auth \
+      --docker-server=ghcr.io \
+      --docker-username=${GITHUB_USER} \
+      --docker-password=-{GITHUB_TOKEN}
+
+
+##### Creating the helmRepository manifest
+
+    flux create source helm podinfo2 \
+      --url=https://stefanprodan.github.io/podinfo \
+      --namespace=podinfo2 \
+      --interval=1m \
+      --export > ${WORKING_DIRECTORY}/kubernetes-development/products/podinfo2/helm-repository.yaml
+
+
+#### La Helm Release podinfo2
+
+Si l'on veut personnaliser la configuration de la Helm Release, on peut se référer aux paramètres ici :
+
+    https://artifacthub.io/packages/helm/podinfo/podinfo
+
+Dans notre cas, nous souhaitons simplement afficher le message 'Hello' dans la UI :
+
+    echo 'ui.message: Hello' > ${WORKING_DIRECTORY}/kubernetes-development/products/podinfo2/helm-release.values.yaml
+
+    flux create helmrelease podinfo2 \
+      --source=HelmRepository/podinfo2 \
+      --chart=podinfo2 \
+      --values=${WORKING_DIRECTORY}/helmrelease_values/podinfo2/values.yaml \
+      --namespace=podinfo2 \
+      --export > ${WORKING_DIRECTORY}/kubernetes-development/products/podinfo2/helm-release.yaml
+
+
+    cd ${WORKING_DIRECTORY}/kubernetes-development
+    git add .
+    git commit -m "feat: Defining a 'podinfo' Helm release."
+    git push
