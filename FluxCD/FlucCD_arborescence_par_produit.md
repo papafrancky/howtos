@@ -1172,14 +1172,14 @@ Créer un channel nommé **_'podinfo2-development'_** dans son 'serveur' Discord
 |doc|https://fluxcd.io/flux/components/notification/providers/#discord|
 |||
 
-cd ${WORKING_DIRECTORY}/kubernetes-development/products/podinfo2/
-flux create alert-provider discord \
-  --type=discord \
-  --secret-ref=discord-podinfo2-development-webhook \
-  --channel=podinfo2-development \
-  --username=FluxCD \
-  --namespace=podinfo2 \
-  --export > notification-provider.yaml
+    cd ${WORKING_DIRECTORY}/kubernetes-development/products/podinfo2/
+    flux create alert-provider discord \
+      --type=discord \
+      --secret-ref=discord-podinfo2-development-webhook \
+      --channel=podinfo2-development \
+      --username=FluxCD \
+      --namespace=podinfo2 \
+      --export > notification-provider.yaml
 
 
 #### Configuration des alertes Discord
