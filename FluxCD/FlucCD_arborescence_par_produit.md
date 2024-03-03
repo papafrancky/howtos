@@ -1162,7 +1162,7 @@ Créer un channel nommé **_'podinfo2-development'_** dans son 'serveur' Discord
 #### Enregistrement du webhook du channel Discord dans un Secret Kubernetes
 
     DISCORD_WEBHOOK=https://discord.com/api/webhooks/1205276611159789689/6UTavz1aoiaEtxTpDmN-hBYP9vRVpXaD-XJK4K0cI0hscdVd3XFrNR32o9vJ_VStB1Hl
-    kubectl -n podinfo2 create secret generic discord-nginxhello2-development-webhook --from-literal=address=${DISCORD_WEBHOOK}
+    kubectl -n podinfo2 create secret generic discord-podinfo2-development-webhook --from-literal=address=${DISCORD_WEBHOOK}
 
 
 #### Création du 'notification provider'
@@ -1265,9 +1265,17 @@ Dans notre cas, nous souhaitons simplement afficher le message 'Hello' dans la U
     flux create helmrelease podinfo2 \
       --source=HelmRepository/podinfo2 \
       --chart=podinfo \
+      #--version=">6.0.0" \
       --values=${WORKING_DIRECTORY}/helmrelease_values/podinfo2/values.yaml \
       --namespace=podinfo2 \
       --export > ${WORKING_DIRECTORY}/kubernetes-development/products/podinfo2/helm-release.yaml
+
+  flux create hr podinfo \
+    --interval=10m \
+    --source=HelmRepository/podinfo \
+    --chart=podinfo \
+    --version=">6.0.0" \
+    -export > 
 
     cat ${WORKING_DIRECTORY}/kubernetes-development/products/podinfo2/helm-release.yaml
 

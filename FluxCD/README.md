@@ -886,7 +886,7 @@ Let's create a new _'Docker registry'_ type secret allowinf us to retrieve the H
       #     ├── nginxhello-source.yaml
       #     └── podinfo.yaml
 
-If you need to customize the configuration of your Helm release, you ca nfind all the parameters for the Values file here :
+If you need to customize the configuration of your Helm release, you can find all the parameters for the Values file here :
 
     https://artifacthub.io/packages/helm/podinfo/podinfo
 
