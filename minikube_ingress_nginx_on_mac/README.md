@@ -15,6 +15,7 @@ Déploiement d'un cluster Minikube sur MacOS avec un Ingress Nginx et exposition
 |[Docker & Kubernetes : Setting up Ingress with NGINX Controller on Minikube (Mac)](https://www.bogotobogo.com/DevOps/Docker/Docker_Kubernetes_Nginx_Ingress_Controller_2.php)|
 |[Minikube - accessing apps](https://minikube.sigs.k8s.io/docs/handbook/accessing/)|
 |[minikube tunnel](https://minikube.sigs.k8s.io/docs/commands/tunnel/)|
+|[Kubernetes documentation - networking - ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/)|
 
 
 ## Pré-requis
@@ -190,6 +191,68 @@ Pour tester, il suffit d'accéder à partir d'un navigateur ou de cURL aux URLs 
     * http://hello-world.info/v2    # avec cURL : curl --Header "Host: hello-world.info" http://localhost/v2
 
 Et voilà ^^
+
+
+### Modification du routage : chaque application aura son propre FQDN
+
+Nous souhaitons désormais rendre accessible :
+* web  via l'URL hello-world.info;
+* web2 via l'URL hello-world-2.info.
+
+#### Modification de l'Ingress Resource
+
+    kubectl delete ingress web
+
+    cat << EOF >> web2.ingress.yaml 
+    apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: web2
+      annotations:
+        nginx.ingress.kubernetes.io/rewrite-target: /
+    spec:
+      rules:
+        - host: hello-world.info
+          http:
+            paths:
+              - path: /
+                pathType: Prefix
+                backend:
+                  service:
+                    name: web
+                    port:
+                      number: 8080
+        - host: hello-world-2.info
+          http:
+            paths:
+              - path: /
+                pathType: Prefix
+                backend:
+                  service:
+                    name: web2
+                    port:
+                      number: 8080
+    EOF
+
+    kubectl apply -f web2.ingress.yaml
+    kubect ldescribe ingress web2
+
+#### Tests
+
+    curl --header "Host: hello-world.info" http://127.0.0.1/
+
+    # Hello, world!
+    # Version: 1.0.0
+    # Hostname: web-57f46db77f-r2rtc
+
+
+    curl --header "Host: hello-world-2.info" http://127.0.0.1/
+
+      # Hello, world!
+      # Version: 2.0.0
+      # Hostname: web2-866dc4bcc8-52xjp
+
+Via le navigateur, il faut avant tout modifier l'entrée du fichier /etc/hosts pour que 127.0.0.1 renvoie vers hello-world.info et hello-world-2.info.
 
 
 ## Nettoyage
