@@ -1,6 +1,7 @@
-# Local Development Environment
+# Local Kubernetes development environment setup
 
-Ce howto décrit comment préparer un environnement de développement sur son poste de travail.
+Ce howto décrit comment préparer un environnement de développement 'Kubernetes-ready' avec un *Ingress controller* Nginx sur son poste de travail.
+
 Il sera le point d'entrée pour les autres howtos.
 
 
