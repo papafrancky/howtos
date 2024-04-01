@@ -15,6 +15,7 @@ Il sera le point d'entrée pour les autres howtos.
 
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
+
 ### kubectl
 
 |Lien utile|
@@ -25,6 +26,7 @@ Il sera le point d'entrée pour les autres howtos.
     brew install kubectl
     kubectl version --client
 
+
 ### kubectx et kubens
 
 |Lien utile|
@@ -32,7 +34,12 @@ Il sera le point d'entrée pour les autres howtos.
 |[kubectx github page](https://github.com/ahmetb/kubectx)|
 
     brew install kubectx
+    which kubectx kubens
 
+
+### Flux CLI install
+
+    brew install fluxctl
 
 ## Kubernetes en local
 
@@ -91,7 +98,3 @@ Il sera le point d'entrée pour les autres howtos.
     kubectl delete services foo-service bar-service
     kubectl delete pods foo-app bar-app
 
-
-## Flux CLI install
-
-    brew install fluxctl
