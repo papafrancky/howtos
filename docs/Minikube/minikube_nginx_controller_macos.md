@@ -1,4 +1,4 @@
-# Minikube Ingress Nginx on MacOS
+# Minikube et l'ingress Nginx sur macOS
 
 Déploiement d'un cluster Minikube sur MacOS avec un Ingress Nginx et exposition d'un application de démo.
  
@@ -26,13 +26,14 @@ Se reporter aux autres docs, ok ? ^^
 
 ### Installation et démarrage de minikube avec Nginx comme ingress
 
-    brew update && brew install minikube
-    minikube start
-    minikube status
-    minikube addons list
-    minikube addons enable ingress
-    k get po -n ingress-nginx
-
+```sh title="Minikube install with nginx ingress controller"
+brew update && brew install minikube
+minikube start
+minikube status
+minikube addons list
+minikube addons enable ingress
+k get po -n ingress-nginx
+```
 
 ## Démo
 
@@ -40,6 +41,8 @@ Se reporter aux autres docs, ok ? ^^
 
 L'application 'hello-app' affiche dans une page web le nom de l'application, sa version ainsi que le pod dans lequel elle tourne.
 
+
+```sh title="Déploiement d'une 'dummy app'"
     # Déploiement de l'application à la version 1 :
     kubectl create deployment web --image=gcr.io/google-samples/hello-app:1.0 --dry-run=client -o yaml > web.deployment.yaml
     kubectl apply -f web.deployment.yaml
@@ -50,6 +53,7 @@ L'application 'hello-app' affiche dans une page web le nom de l'application, sa 
     
         # 2024/03/30 14:46:46 Server listening on port 8080
 
+
     # Exposition de l'application :
     kubectl expose deployment web --type=NodePort --port=8080 --dry-run=client -o yaml > web.service.yaml
 
@@ -58,7 +62,9 @@ L'application 'hello-app' affiche dans une page web le nom de l'application, sa 
         # NAME   TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
         # web    NodePort   10.98.252.182   <none>        8080:32002/TCP   109s
 
+
     # Accès à l'application :
+    
       - via le port-forwarding :
 
         kubetl port-forward service/web 8080:8080 &
@@ -81,6 +87,7 @@ L'application 'hello-app' affiche dans une page web le nom de l'application, sa 
           # |-----------|------|-------------|------------------------|
           # 🎉  Ouverture du service default/web dans le navigateur par défaut...
           # ❗  Comme vous utilisez un pilote Docker sur darwin, le terminal doit être ouvert pour l'exécuter.
+```
 
 C'est très bien, ça fonctionne, mais ce n'est pas ce qu'on veut faire : on veut passer par un service de type Load-Balancer en renseignant un FQDN et nom une IP et un port TCP.
 

@@ -28,10 +28,7 @@ For full documentation visit [mkdocs.org](https://www.mkdocs.org).
 Exemple d'utilisation des admonicons
 
 !!! bug
-
-    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nulla et euismod
-    nulla. Curabitur feugiat, tortor non consequat finibus, justo purus auctor
-    massa, nec semper lorem quam in massa.
+    [note - abstract - info - tip - success - question - warning - failure - danger - bug](https://squidfunk.github.io/mkdocs-material/reference/admonitions/#supported-types)
 
 
 Exemple de liste de tâches
